@@ -74,7 +74,6 @@ async fn main() -> Result<()> {
         Commands::Map { region, tram, night } => { handle_map(region, tram, night)?; },
     };
 
-
     Ok(())
 }
 
@@ -125,7 +124,8 @@ async fn handle_routes(from: String, to: String, time: Option<String>, arrival: 
         let lines = connection.parts.iter().fold(Vec::new(), |mut acc, x| {
             acc.push(x.line.label.clone());
             acc
-        }).to_owned().join(", ");
+        });
+        let lines = lines.iter().map(|x| colorize_line(x)).collect::<Vec<_>>().join(", ");
         let delay = match origin.departure_delay_in_minutes {
             Some(delay) if delay != 0 => delay.to_string(),
             _ => "-".to_string(),
@@ -139,6 +139,7 @@ async fn handle_routes(from: String, to: String, time: Option<String>, arrival: 
 
         RouteTableEntry { time, in_minutes, duration, lines, delay, info }
     }).collect::<Vec<_>>();
+
     let mut table = Table::new(table_entries);
     table.with(tabled::settings::Style::rounded());
     println!("{}", table);
@@ -172,4 +173,42 @@ fn handle_map(region: bool, tram: bool, night: bool) -> Result<()> {
     }
 
     Ok(())
+}
+
+fn colorize_line(line: &str) -> String {
+    use nu_ansi_term::Color::Fixed;
+    use nu_ansi_term::Style;
+    let colored = match line {
+        "U1" => Fixed(255).on(Fixed(22)).paint(format!(" {} ", line)),
+        "U2" => Fixed(255).on(Fixed(124)).paint(format!(" {} ", line)),
+        "U3" => Fixed(255).on(Fixed(166)).paint(format!(" {} ", line)),
+        "U4" => Fixed(255).on(Fixed(30)).paint(format!(" {} ", line)),
+        "U5" => Fixed(255).on(Fixed(94)).paint(format!(" {} ", line)),
+        "U6" => Fixed(255).on(Fixed(20)).paint(format!(" {} ", line)),
+        "U7" => {
+            let mut i = line.chars();
+            let lhs = i.next().unwrap();
+            let rhs = i.next().unwrap();
+            let lhs = Fixed(255).on(Fixed(22)).paint(format!(" {}", lhs));
+            println!("{lhs}");
+            let rhs = Fixed(255).on(Fixed(124)).paint(format!("{} ", rhs));
+            println!("{rhs}");
+            let total = [lhs.to_string(), rhs.to_string()].join("");
+            Style::new().paint(total)
+        },
+        "U8" => {
+            let mut i = line.chars();
+            let lhs = i.next().unwrap();
+            let rhs = i.next().unwrap();
+            let lhs = Fixed(255).on(Fixed(124)).paint(format!(" {}", lhs));
+            println!("{lhs}");
+            let rhs = Fixed(255).on(Fixed(166)).paint(format!("{} ", rhs));
+            println!("{rhs}");
+            let total = [lhs.to_string(), rhs.to_string()].join("");
+            Style::new().paint(total)
+
+        },
+        _ => Style::default().paint(line),
+    }; 
+    colored.to_string()
 }
