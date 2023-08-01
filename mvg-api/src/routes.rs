@@ -4,7 +4,7 @@ use serde::Deserialize;
 #[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct Connection {
-    pub unique_id: usize,
+    pub unique_id: isize,
     pub parts: Vec<ConnectionPart>,
     pub ticketing_information: TicketingInformation,
 }
@@ -34,7 +34,7 @@ pub struct Station {
     pub longitude: f64,
     pub station_global_id: String,
     pub station_diva_id: usize,
-    pub platform: usize,
+    pub platform: Option<usize>,
     pub place: String,
     pub name: String,
     // #[serde_as(as = "Rfc3339")]
