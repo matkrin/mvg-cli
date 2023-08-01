@@ -13,4 +13,5 @@ chrono = "0.4.26"
 clap = { version = "4.3.19", features = ["derive"] }
 mvg-api = { path = "./mvg-api" }
 open = "5.0.0"
+tabled = "0.13.0"
 tokio = { version = "1.29.1", features = ["full"] }

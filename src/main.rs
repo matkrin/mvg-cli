@@ -1,6 +1,8 @@
 use anyhow::Result;
 use chrono::{DateTime, Local};
 use clap::{Parser, Subcommand};
+use tabled::{Table, Tabled};
+use mvg_api::{get_routes, get_station};
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
@@ -65,22 +67,82 @@ async fn main() -> Result<()> {
     let args: Cli = Cli::parse();
     println!("{:?}", args);
 
-    let res = match args.command {
-        Commands::Routes { from, to, time, arrival, } => handle_routes(from, to, time, arrival),
-        Commands::Notifications { filter } => handle_notifications(filter),
-        Commands::Departures { station, offset } => handle_departures(station, offset), 
-        Commands::Map { region, tram, night } => handle_map(region, tram, night),
+    match args.command {
+        Commands::Routes { from, to, time, arrival, } => { handle_routes(from, to, time, arrival).await?; },
+        Commands::Notifications { filter } => { handle_notifications(filter)?; },
+        Commands::Departures { station, offset } => { handle_departures(station, offset)?; }, 
+        Commands::Map { region, tram, night } => { handle_map(region, tram, night)?; },
     };
 
-    if let Err(e) = res {
-        println!("An error occurred: {}" ,e);
-    }
 
     Ok(())
 }
 
-fn handle_routes(from: String, to: String, time: Option<String>, arrival: bool) -> Result<()> {
+#[derive(Tabled)]
+struct RouteTableEntry {
+    #[tabled(rename = "Time")]
+    time: String,
+    #[tabled(rename = "In")]
+    in_minutes: String,
+    #[tabled(rename = "Duration")]
+    duration: String,
+    #[tabled(rename = "Lines")]
+    lines: String,
+    #[tabled(rename = "Delay")]
+    delay: String,
+    #[tabled(rename = "Info")]
+    info: String,
+}
+
+async fn handle_routes(from: String, to: String, time: Option<String>, arrival: bool) -> Result<()> {
     println!("routes with {:?}, {:?}, {:?}, {:?}", from, to, time, arrival);
+    let from = &get_station(&from).await?[0];
+    let from_id = match from {
+        mvg_api::Location::Station(s) => &s.global_id,
+        _ => todo!(),
+    };
+    let to = &get_station(&to).await?[0];
+    let to_id = match to {
+        mvg_api::Location::Station(s) => &s.global_id,
+        _ => todo!()
+    };
+    let routes = get_routes(from_id, to_id, None , None, None, None, None, None, None).await?;
+    // dbg!(&routes);
+    let table_entries = routes.iter().map(|connection| {
+        let origin = &connection.parts[0].from;
+        let destination = &connection.parts[connection.parts.len()-1].to;
+        let time = format!(
+            "{} - {}",
+            origin.planned_departure.format("%H:%M"),
+            destination.planned_departure.format("%H:%M")
+        );
+        let in_minutes = (origin.planned_departure.time() - Local::now().time())
+            .num_minutes()
+            .to_string();
+        let duration = (destination.planned_departure.time() - origin.planned_departure.time())
+            .num_minutes()
+            .to_string();
+        let lines = connection.parts.iter().fold(Vec::new(), |mut acc, x| {
+            acc.push(x.line.label.clone());
+            acc
+        }).to_owned().join(", ");
+        let delay = match origin.departure_delay_in_minutes {
+            Some(delay) if delay != 0 => delay.to_string(),
+            _ => "-".to_string(),
+        };
+        let info = connection.parts.iter().fold(Vec::new(), |mut acc, x| {
+            for message in &x.messages {
+                acc.push(message.clone());
+            }
+            acc
+        }).join("\n");
+
+        RouteTableEntry { time, in_minutes, duration, lines, delay, info }
+    }).collect::<Vec<_>>();
+    let mut table = Table::new(table_entries);
+    table.with(tabled::settings::Style::rounded());
+    println!("{}", table);
+
     Ok(())
 }
 
