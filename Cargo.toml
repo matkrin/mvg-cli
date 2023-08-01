@@ -1,0 +1,16 @@
+[package]
+name = "mvg-cli"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[workspace]
+members = ["mvg-api"]
+
+[dependencies]
+anyhow = "1.0.72"
+chrono = "0.4.26"
+clap = { version = "4.3.19", features = ["derive"] }
+mvg-api = { path = "./mvg-api" }
+open = "5.0.0"
+tokio = { version = "1.29.1", features = ["full"] }
