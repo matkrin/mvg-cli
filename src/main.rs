@@ -78,3 +78,36 @@ async fn main() -> Result<()> {
 
     Ok(())
 }
+
+fn handle_routes(from: String, to: String, time: Option<String>, arrival: bool) -> Result<()> {
+    println!("routes with {:?}, {:?}, {:?}, {:?}", from, to, time, arrival);
+    Ok(())
+}
+
+fn handle_notifications(filter: Option<Vec<String>>) -> Result<()> {
+    println!("notifications with {:?}", filter);
+    Ok(())
+}
+
+fn handle_departures(station: String, offset: Option<usize>) -> Result<()> {
+    println!("departures with {:?}, {:?}", station, offset);
+    Ok(())
+}
+
+fn handle_map(region: bool, tram: bool, night: bool) -> Result<()> {
+    if let (false, false, false) = (region, tram, night) {
+        open::that("https://www.mvg.de/dam/jcr:88249232-e41c-417b-b976-1945c5ade867/netz-tarifplan.pdf")?
+    };
+
+    if region {
+        open::that("https://www.mvg.de/dam/jcr:88249232-e41c-417b-b976-1945c5ade867/netz-tarifplan.pdf")?;
+    }
+    if tram {
+        open::that("https://www.mvg.de/dam/jcr:1164570c-cc5f-4b6d-a007-e99c32b00905/tramnetz.pdf")?;
+    }
+    if night {
+        open::that("https://www.mvg.de/dam/jcr:fe99cd93-ef1c-483c-a715-f421da96382b/nachtliniennetz.pdf")?;
+    }
+
+    Ok(())
+}
