@@ -147,9 +147,35 @@ async fn handle_routes(from: String, to: String, time: Option<String>, arrival: 
     Ok(())
 }
 
+#[derive(Tabled)]
+struct NotificationsTableEntry {
+    #[tabled(rename = "Lines")]
+    lines: String,
+    #[tabled(rename = "Duration")]
+    duration: String,
+    #[tabled(rename = "Details")]
+    details: String,
+}
+
 fn handle_notifications(filter: Option<Vec<String>>) -> Result<()> {
     println!("notifications with {:?}", filter);
     Ok(())
+}
+
+#[derive(Tabled)]
+struct DeparturesTableEntry {
+    #[tabled(rename = "Time")]
+    time: String,
+    #[tabled(rename = "In")]
+    in_minutes: String,
+    #[tabled(rename = "Line")]
+    line: String,
+    #[tabled(rename = "Destination")]
+    destination: String,
+    #[tabled(rename = "Delay")]
+    delay: String,
+    #[tabled(rename = "Info")]
+    info: String,
 }
 
 fn handle_departures(station: String, offset: Option<usize>) -> Result<()> {
