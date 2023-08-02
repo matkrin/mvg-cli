@@ -2,7 +2,7 @@ use anyhow::Result;
 use chrono::{DateTime, Local};
 use clap::{Parser, Subcommand};
 use tabled::{Table, Tabled};
-use mvg_api::{get_routes, get_station};
+use mvg_api::{get_routes, get_station, get_departures};
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
@@ -70,7 +70,7 @@ async fn main() -> Result<()> {
     match args.command {
         Commands::Routes { from, to, time, arrival, } => { handle_routes(from, to, time, arrival).await?; },
         Commands::Notifications { filter } => { handle_notifications(filter)?; },
-        Commands::Departures { station, offset } => { handle_departures(station, offset)?; }, 
+        Commands::Departures { station, offset } => { handle_departures(station, offset).await?; }, 
         Commands::Map { region, tram, night } => { handle_map(region, tram, night)?; },
     };
 
@@ -106,7 +106,6 @@ async fn handle_routes(from: String, to: String, time: Option<String>, arrival: 
         _ => todo!()
     };
     let routes = get_routes(from_id, to_id, None , None, None, None, None, None, None).await?;
-    // dbg!(&routes);
     let table_entries = routes.iter().map(|connection| {
         let origin = &connection.parts[0].from;
         let destination = &connection.parts[connection.parts.len()-1].to;
@@ -148,21 +147,6 @@ async fn handle_routes(from: String, to: String, time: Option<String>, arrival: 
 }
 
 #[derive(Tabled)]
-struct NotificationsTableEntry {
-    #[tabled(rename = "Lines")]
-    lines: String,
-    #[tabled(rename = "Duration")]
-    duration: String,
-    #[tabled(rename = "Details")]
-    details: String,
-}
-
-fn handle_notifications(filter: Option<Vec<String>>) -> Result<()> {
-    println!("notifications with {:?}", filter);
-    Ok(())
-}
-
-#[derive(Tabled)]
 struct DeparturesTableEntry {
     #[tabled(rename = "Time")]
     time: String,
@@ -178,8 +162,51 @@ struct DeparturesTableEntry {
     info: String,
 }
 
-fn handle_departures(station: String, offset: Option<usize>) -> Result<()> {
+async fn handle_departures(station: String, offset: Option<usize>) -> Result<()> {
     println!("departures with {:?}, {:?}", station, offset);
+    let station = &get_station(&station).await?[0];
+    let station_id = match station {
+        mvg_api::Location::Station(s) => &s.global_id,
+        _ => todo!(),
+    };
+    let departures = get_departures(station_id).await?;
+    let departures_table_entries = departures.iter().map(|departure| {
+        let time = departure.planned_departure_time.format("%H:%M").to_string();
+        let in_minutes = (departure.planned_departure_time.time() - Local::now().time())
+            .num_minutes()
+            .to_string();
+        let line = colorize_line(&departure.label);
+        let destination = departure.destination.clone();
+        let delay = match departure.delay_in_minutes {
+            Some(min) if min != 0 => min.to_string(),
+            _ => "-".to_string(),
+        };
+        let info = departure.messages.iter().fold(Vec::new(), |mut acc, x| {
+            acc.push(x.clone());
+            acc
+        }).join("\n");
+        DeparturesTableEntry { time , in_minutes, line, destination, delay, info }
+    });
+
+    let mut table = Table::new(departures_table_entries);
+    table.with(tabled::settings::Style::rounded());
+    println!("{}", table);
+
+    Ok(())
+}
+
+#[derive(Tabled)]
+struct NotificationsTableEntry {
+    #[tabled(rename = "Lines")]
+    lines: String,
+    #[tabled(rename = "Duration")]
+    duration: String,
+    #[tabled(rename = "Details")]
+    details: String,
+}
+
+fn handle_notifications(filter: Option<Vec<String>>) -> Result<()> {
+    println!("notifications with {:?}", filter);
     Ok(())
 }
 
@@ -202,6 +229,16 @@ fn handle_map(region: bool, tram: bool, night: bool) -> Result<()> {
 }
 
 fn colorize_line(line: &str) -> String {
+    if line.starts_with('U') {
+        colorized_ubahn(line)
+    } else if line.starts_with('S') {
+        colorize_sbahn(line)
+    } else {
+        line.to_string()
+    }
+}
+
+fn colorized_ubahn(line: &str) -> String {
     use nu_ansi_term::Color::Fixed;
     use nu_ansi_term::Style;
     let colored = match line {
@@ -216,9 +253,7 @@ fn colorize_line(line: &str) -> String {
             let lhs = i.next().unwrap();
             let rhs = i.next().unwrap();
             let lhs = Fixed(255).on(Fixed(22)).paint(format!(" {}", lhs));
-            println!("{lhs}");
             let rhs = Fixed(255).on(Fixed(124)).paint(format!("{} ", rhs));
-            println!("{rhs}");
             let total = [lhs.to_string(), rhs.to_string()].join("");
             Style::new().paint(total)
         },
@@ -227,13 +262,36 @@ fn colorize_line(line: &str) -> String {
             let lhs = i.next().unwrap();
             let rhs = i.next().unwrap();
             let lhs = Fixed(255).on(Fixed(124)).paint(format!(" {}", lhs));
-            println!("{lhs}");
             let rhs = Fixed(255).on(Fixed(166)).paint(format!("{} ", rhs));
-            println!("{rhs}");
             let total = [lhs.to_string(), rhs.to_string()].join("");
             Style::new().paint(total)
 
         },
+        _ => Style::default().paint(line),
+    }; 
+    colored.to_string()
+}
+
+fn colorize_sbahn(line: &str) -> String {
+    use nu_ansi_term::Color::Fixed;
+    use nu_ansi_term::Style;
+    let colored = match line {
+        "S1" => Fixed(255).on(Fixed(73)).paint(format!(" {} ", line)),
+        "S2" => Fixed(255).on(Fixed(34)).paint(format!(" {} ", line)),
+        "S3" => Fixed(255).on(Fixed(53)).paint(format!(" {} ", line)),
+        "S4" => Fixed(255).on(Fixed(196)).paint(format!(" {} ", line)),
+        "S6" => Fixed(255).on(Fixed(29)).paint(format!(" {} ", line)),
+        "S7" => Fixed(255).on(Fixed(204)).paint(format!(" {} ", line)),
+        "S8" => {
+            let mut i = line.chars();
+            let lhs = i.next().unwrap();
+            let rhs = i.next().unwrap();
+            let lhs = Fixed(255).on(Fixed(233)).paint(format!(" {}", lhs));
+            let rhs = Fixed(255).on(Fixed(226)).paint(format!("{} ", rhs));
+            let total = [lhs.to_string(), rhs.to_string()].join("");
+            Style::new().paint(total)
+        },
+        "S20" => Fixed(255).on(Fixed(203)).paint(format!(" {} ", line)),
         _ => Style::default().paint(line),
     }; 
     colored.to_string()
