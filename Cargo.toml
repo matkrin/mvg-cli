@@ -11,8 +11,10 @@ members = ["mvg-api"]
 anyhow = "1.0.72"
 chrono = "0.4.26"
 clap = { version = "4.3.19", features = ["derive"] }
+html2text = "0.6.0"
 mvg-api = { path = "./mvg-api" }
 nu-ansi-term = "0.49.0"
 open = "5.0.0"
 tabled = { version = "0.13.0", features = ["color"] }
+terminal_size = "0.2.6"
 tokio = { version = "1.29.1", features = ["full"] }
