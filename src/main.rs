@@ -46,9 +46,9 @@ enum Commands {
     /// Show notifications for specific lines or all notifications if no arguments are given
     #[clap(visible_alias = "n")]
     Notifications {
-        /// Filter for specific lines
-        #[arg(short, long, num_args = 1..)]
-        filter: Option<Vec<String>>,
+        /// Filter for a specific line
+        #[arg(short, long)]
+        filter: Option<String>,
     },
 
     /// Show map in browser
@@ -263,44 +263,61 @@ struct NotificationsTableEntry {
     details: String,
 }
 
-async fn handle_notifications(filter: Option<Vec<String>>) -> Result<()> {
+async fn handle_notifications(filter: Option<String>) -> Result<()> {
     use nu_ansi_term::Style;
     println!("notifications with {:?}", filter);
     let notifications = get_notifications().await?;
     // dbg!(&notifications[0]);
-    let notifications_table_entries = notifications.iter().map(|notification| {
-        let lines = notification
-            .lines
-            .iter()
-            .map(|line| line.name.clone())
-            .collect::<Vec<_>>()
-            .join(", ");
-        let duration_from = notification
-            .active_duration
-            .from_date
-            .format("%d.%m.%Y");
-        let duration_to = notification
-            .active_duration
-            .to_date
-            .map(|x| x.format("%d.%m.%Y").to_string())
-            .unwrap_or("".to_string());
-        let duration = format!("{} - {}", duration_from, duration_to);
-        let title = html2text::from_read(notification.title.as_bytes(), 99999);
-        let text = html2text::from_read(notification.text.as_bytes(), 99999);
-        let details = format!("{}\n{}", Style::new().bold().paint(title), text);
-        NotificationsTableEntry {
-            lines,
-            duration,
-            details,
-        }
-    });
+    let notifications_table_entries = notifications
+        .iter()
+        .map(|notification| {
+            let lines = notification
+                .lines
+                .iter()
+                .map(|line| line.name.clone())
+                .collect::<Vec<_>>()
+                .join(", ");
+            let duration_from = notification.active_duration.from_date.format("%d.%m.%Y");
+            let duration_to = notification
+                .active_duration
+                .to_date
+                .map(|x| x.format("%d.%m.%Y").to_string())
+                .unwrap_or("".to_string());
+            let duration = format!("{} - {}", duration_from, duration_to);
+            let title = html2text::from_read(notification.title.as_bytes(), 99999);
+            let text = html2text::from_read(notification.text.as_bytes(), 99999);
+            let details = format!("{}\n{}", Style::new().bold().paint(title), text);
+            NotificationsTableEntry {
+                lines,
+                duration,
+                details,
+            }
+        })
+        .collect::<Vec<_>>();
+
+    let notifications_table_entries = match filter {
+        Some(f) => notifications_table_entries
+            .into_iter()
+            .filter(|entry| entry.lines.to_lowercase().contains(&f.to_lowercase()))
+            .collect::<Vec<_>>(),
+        _ => notifications_table_entries,
+    };
+
+    if notifications_table_entries.is_empty() {
+        println!("No notifications found");
+        return Ok(())
+    };
 
     let (TerminalWidth(terminal_width), _) = terminal_size().expect("Not in a terminal");
     let mut table = Table::new(notifications_table_entries);
     table
         .with(tabled::settings::Style::rounded())
         .with(Modify::new(Columns::first()).with(Width::wrap(10).keep_words()))
-        .with(Modify::new(Columns::last()).with(Width::wrap(terminal_width as usize - 50)));
+        .with(
+            Modify::new(Columns::last())
+                .with(Width::wrap(terminal_width as usize - 50).keep_words()),
+        );
+
     println!("{}", table);
 
     Ok(())
