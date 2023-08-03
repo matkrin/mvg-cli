@@ -1,5 +1,5 @@
 use anyhow::Result;
-use chrono::Local;
+use chrono::{Local, NaiveTime, TimeZone};
 use clap::{Parser, Subcommand};
 use mvg_api::{get_departures, get_notifications, get_routes, get_station};
 use tabled::{
@@ -69,7 +69,6 @@ enum Commands {
 #[tokio::main]
 async fn main() -> Result<()> {
     let args: Cli = Cli::parse();
-    println!("{:?}", args);
 
     match args.command {
         Commands::Routes {
@@ -120,10 +119,6 @@ async fn handle_routes(
     time: Option<String>,
     arrival: bool,
 ) -> Result<()> {
-    println!(
-        "routes with {:?}, {:?}, {:?}, {:?}",
-        from, to, time, arrival
-    );
     let from = &get_station(&from).await?[0];
     let from_id = match from {
         mvg_api::Location::Station(s) => &s.global_id,
@@ -134,7 +129,6 @@ async fn handle_routes(
         mvg_api::Location::Station(s) => &s.global_id,
         _ => todo!(),
     };
-    let routes = get_routes(from_id, to_id, None, None, None, None, None, None, None).await?;
     let time = match time {
         Some(t) => {
             let naive_time = NaiveTime::parse_from_str(&t, "%H:%M")?;
@@ -209,6 +203,23 @@ async fn handle_routes(
 
     let mut table = Table::new(table_entries);
     table.with(tabled::settings::Style::rounded());
+    let from_name = match from {
+        mvg_api::Location::Station(s) => {
+            let a = nu_ansi_term::Style::new().bold().paint(&s.name).to_string();
+            let b = nu_ansi_term::Style::new().italic().paint(&s.place).to_string();
+            [a, b].join(", ")
+        },
+        _ => todo!(),
+    };
+    let to_name = match to {
+        mvg_api::Location::Station(s) => {
+            let a = nu_ansi_term::Style::new().bold().paint(&s.name).to_string();
+            let b = nu_ansi_term::Style::new().italic().paint(&s.place).to_string();
+            [a, b].join(", ")
+        },
+        _ => todo!(),
+    };
+    println!("Connections for: {} ➜ {}", from_name, to_name);
     println!("{}", table);
 
     Ok(())
@@ -286,7 +297,6 @@ struct NotificationsTableEntry {
 
 async fn handle_notifications(filter: Option<String>) -> Result<()> {
     use nu_ansi_term::Style;
-    println!("notifications with {:?}", filter);
     let notifications = get_notifications().await?;
     // dbg!(&notifications[0]);
     let notifications_table_entries = notifications
@@ -295,7 +305,7 @@ async fn handle_notifications(filter: Option<String>) -> Result<()> {
             let lines = notification
                 .lines
                 .iter()
-                .map(|line| line.name.clone())
+                .map(|line| colorize_line(&line.name))
                 .collect::<Vec<_>>()
                 .join(", ");
             let duration_from = notification.active_duration.from_date.format("%d.%m.%Y");
@@ -326,7 +336,7 @@ async fn handle_notifications(filter: Option<String>) -> Result<()> {
 
     if notifications_table_entries.is_empty() {
         println!("No notifications found");
-        return Ok(())
+        return Ok(());
     };
 
     let (TerminalWidth(terminal_width), _) = terminal_size().expect("Not in a terminal");
