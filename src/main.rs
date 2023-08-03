@@ -135,6 +135,27 @@ async fn handle_routes(
         _ => todo!(),
     };
     let routes = get_routes(from_id, to_id, None, None, None, None, None, None, None).await?;
+    let time = match time {
+        Some(t) => {
+            let naive_time = NaiveTime::parse_from_str(&t, "%H:%M")?;
+            let naive_datetime = Local::now().date_naive().and_time(naive_time);
+            Local.from_local_datetime(&naive_datetime).unwrap()
+        }
+        None => Local::now(),
+    };
+
+    let routes = get_routes(
+        from_id,
+        to_id,
+        Some(time),
+        Some(arrival),
+        None,
+        None,
+        None,
+        None,
+        None,
+    )
+    .await?;
     let table_entries = routes
         .iter()
         .map(|connection| {
