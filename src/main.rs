@@ -231,13 +231,13 @@ struct DeparturesTableEntry {
 }
 
 async fn handle_departures(station: String, offset: Option<usize>) -> Result<()> {
-    println!("departures with {:?}, {:?}", station, offset);
     let station = &get_station(&station).await?[0];
     let station_id = match station {
         mvg_api::Location::Station(s) => &s.global_id,
         _ => todo!(),
     };
-    let departures = get_departures(station_id).await?;
+    let offset = offset.unwrap_or(0);
+    let departures = get_departures(station_id, offset).await?;
     let departures_table_entries = departures.iter().map(|departure| {
         let time = departure.planned_departure_time.format("%H:%M").to_string();
         let in_minutes = (departure.planned_departure_time.time() - Local::now().time())
