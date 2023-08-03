@@ -89,31 +89,31 @@ pub async fn get_routes(
     include_sbahn: Option<bool>,
     include_taxi: Option<bool>,
 ) -> Result<Vec<Connection>, reqwest::Error> {
-    let mut transport_types = String::new();
+    let mut transport_types = Vec::new();
 
     if let Some(x) = include_ubahn {
         if x {
-            transport_types.push_str("UBAHN,")
+            transport_types.push("UBAHN")
         }
     }
     if let Some(x) = include_bus {
         if x {
-            transport_types.push_str("BUS,")
+            transport_types.push("BUS")
         }
     }
     if let Some(x) = include_tram {
         if x {
-            transport_types.push_str("TRAM,")
+            transport_types.push("TRAM")
         }
     }
     if let Some(x) = include_sbahn {
         if x {
-            transport_types.push_str("SBAHN,")
+            transport_types.push("SBAHN")
         }
     }
     if let Some(x) = include_taxi {
         if x {
-            transport_types.push_str("RUFTAXI,")
+            transport_types.push("RUFTAXI")
         }
     }
 
@@ -122,19 +122,14 @@ pub async fn get_routes(
         None => Utc::now(),
     };
 
-    let mut url = format!(
+    let url = format!(
         "https://www.mvg.de/api/fib/v2/connection?originStationGlobalId={}&destinationStationGlobalId={}&routingDateTime={}&routingDateTimeIsArrival={}&transportTypes={}",
         from_station_id,
         to_station_id,
         time.to_rfc3339_opts(SecondsFormat::Millis, true),
         arrival.unwrap_or(false),
-        transport_types,
+        transport_types.join(","),
     );
-
-    let last_char = url.chars().last();
-    if last_char.unwrap() == ',' {
-        url.pop();
-    };
 
     let resp = reqwest::get(url).await?.json::<Vec<Connection>>().await?;
     Ok(resp)
