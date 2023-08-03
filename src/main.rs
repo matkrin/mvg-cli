@@ -206,17 +206,23 @@ async fn handle_routes(
     let from_name = match from {
         mvg_api::Location::Station(s) => {
             let a = nu_ansi_term::Style::new().bold().paint(&s.name).to_string();
-            let b = nu_ansi_term::Style::new().italic().paint(&s.place).to_string();
+            let b = nu_ansi_term::Style::new()
+                .italic()
+                .paint(&s.place)
+                .to_string();
             [a, b].join(", ")
-        },
+        }
         _ => todo!(),
     };
     let to_name = match to {
         mvg_api::Location::Station(s) => {
             let a = nu_ansi_term::Style::new().bold().paint(&s.name).to_string();
-            let b = nu_ansi_term::Style::new().italic().paint(&s.place).to_string();
+            let b = nu_ansi_term::Style::new()
+                .italic()
+                .paint(&s.place)
+                .to_string();
             [a, b].join(", ")
-        },
+        }
         _ => todo!(),
     };
     println!("Connections for: {} ➜ {}", from_name, to_name);
@@ -277,6 +283,19 @@ async fn handle_departures(station: String, offset: Option<usize>) -> Result<()>
             info,
         }
     });
+
+    let station_name = match station {
+        mvg_api::Location::Station(s) => {
+            let a = nu_ansi_term::Style::new().bold().paint(&s.name).to_string();
+            let b = nu_ansi_term::Style::new()
+                .italic()
+                .paint(&s.place)
+                .to_string();
+            [a, b].join(", ")
+        }
+        _ => todo!(),
+    };
+    println!("Departures for: {}", station_name);
 
     let mut table = Table::new(departures_table_entries);
     table.with(tabled::settings::Style::rounded());
