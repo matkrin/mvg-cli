@@ -166,13 +166,10 @@ async fn handle_routes(
             let duration = (destination.planned_departure.time() - origin.planned_departure.time())
                 .num_minutes()
                 .to_string();
-            let lines = connection.parts.iter().fold(Vec::new(), |mut acc, x| {
-                acc.push(x.line.label.clone());
-                acc
-            });
-            let lines = lines
+            let lines = connection
+                .parts
                 .iter()
-                .map(|x| colorize_line(x))
+                .map(|x| colorize_line(&x.line.label))
                 .collect::<Vec<_>>()
                 .join(", ");
             let delay = match origin.departure_delay_in_minutes {
@@ -182,12 +179,8 @@ async fn handle_routes(
             let info = connection
                 .parts
                 .iter()
-                .fold(Vec::new(), |mut acc, x| {
-                    for message in &x.messages {
-                        acc.push(message.clone());
-                    }
-                    acc
-                })
+                .flat_map(|x| x.messages.clone())
+                .collect::<Vec<_>>()
                 .join("\n");
 
             RouteTableEntry {
@@ -266,14 +259,7 @@ async fn handle_departures(station: String, offset: Option<usize>) -> Result<()>
             Some(min) if min != 0 => min.to_string(),
             _ => "-".to_string(),
         };
-        let info = departure
-            .messages
-            .iter()
-            .fold(Vec::new(), |mut acc, x| {
-                acc.push(x.clone());
-                acc
-            })
-            .join("\n");
+        let info = departure.messages.join("\n");
         DeparturesTableEntry {
             time,
             in_minutes,
