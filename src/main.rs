@@ -121,15 +121,15 @@ async fn handle_routes(
     arrival: bool,
 ) -> Result<()> {
     let mut spinner = Spinner::new(Spinners::Aesthetic, "Fetching...".to_string());
-    let from = &get_station(&from).await?[0];
-    let from_id = match from {
+    let from_response = &get_station(&from).await?[0];
+    let from_id = match from_response {
         mvg_api::Location::Station(s) => &s.global_id,
-        _ => todo!(),
+        _ => panic!("No station {} found", from),
     };
-    let to = &get_station(&to).await?[0];
-    let to_id = match to {
+    let to_response = &get_station(&to).await?[0];
+    let to_id = match to_response {
         mvg_api::Location::Station(s) => &s.global_id,
-        _ => todo!(),
+        _ => panic!("No station {} found", to),
     };
     let time = match time {
         Some(t) => {
@@ -198,7 +198,7 @@ async fn handle_routes(
 
     let mut table = Table::new(table_entries);
     table.with(tabled::settings::Style::rounded());
-    let from_name = match from {
+    let from_name = match from_response {
         mvg_api::Location::Station(s) => {
             let a = nu_ansi_term::Style::new().bold().paint(&s.name).to_string();
             let b = nu_ansi_term::Style::new()
@@ -207,9 +207,9 @@ async fn handle_routes(
                 .to_string();
             [a, b].join(", ")
         }
-        _ => todo!(),
+        _ => unreachable!(),  // program would already have exited at this point
     };
-    let to_name = match to {
+    let to_name = match to_response {
         mvg_api::Location::Station(s) => {
             let a = nu_ansi_term::Style::new().bold().paint(&s.name).to_string();
             let b = nu_ansi_term::Style::new()
@@ -218,7 +218,7 @@ async fn handle_routes(
                 .to_string();
             [a, b].join(", ")
         }
-        _ => todo!(),
+        _ => unreachable!(),  // program would already have exited at this point
     };
     spinner.stop_and_persist("✔", format!("Connections for: {} ➜ {}", from_name, to_name));
     println!("{}", table);
@@ -244,10 +244,10 @@ struct DeparturesTableEntry {
 
 async fn handle_departures(station: String, offset: Option<usize>) -> Result<()> {
     let mut spinner = Spinner::new(Spinners::Aesthetic, "Fetching...".to_string());
-    let station = &get_station(&station).await?[0];
-    let station_id = match station {
+    let station_response = &get_station(&station).await?[0];
+    let station_id = match station_response {
         mvg_api::Location::Station(s) => &s.global_id,
-        _ => todo!(),
+        _ => panic!("No station {} found", station),
     };
     let offset = offset.unwrap_or(0);
     let departures = get_departures(station_id, offset).await?;
@@ -273,7 +273,7 @@ async fn handle_departures(station: String, offset: Option<usize>) -> Result<()>
         }
     });
 
-    let station_name = match station {
+    let station_name = match station_response {
         mvg_api::Location::Station(s) => {
             let a = nu_ansi_term::Style::new().bold().paint(&s.name).to_string();
             let b = nu_ansi_term::Style::new()
@@ -282,7 +282,7 @@ async fn handle_departures(station: String, offset: Option<usize>) -> Result<()>
                 .to_string();
             [a, b].join(", ")
         }
-        _ => todo!(),
+        _ => unreachable!(),  // program would already have exited
     };
 
     spinner.stop_and_persist("✔", format!("Departures for: {}", station_name));
@@ -440,15 +440,7 @@ fn colorize_sbahn(line: &str) -> String {
         "S4" => Fixed(255).on(Fixed(196)).paint(format!(" {} ", line)),
         "S6" => Fixed(255).on(Fixed(29)).paint(format!(" {} ", line)),
         "S7" => Fixed(255).on(Fixed(204)).paint(format!(" {} ", line)),
-        "S8" => {
-            let mut i = line.chars();
-            let lhs = i.next().unwrap();
-            let rhs = i.next().unwrap();
-            let lhs = Fixed(255).on(Fixed(233)).paint(format!(" {}", lhs));
-            let rhs = Fixed(255).on(Fixed(226)).paint(format!("{} ", rhs));
-            let total = [lhs.to_string(), rhs.to_string()].join("");
-            Style::new().paint(total)
-        }
+        "S8" => Fixed(226).on(Fixed(233)).paint(format!(" {} ", line)),
         "S20" => Fixed(255).on(Fixed(203)).paint(format!(" {} ", line)),
         _ => Style::default().paint(line),
     };
