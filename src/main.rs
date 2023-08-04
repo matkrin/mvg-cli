@@ -2,6 +2,7 @@ use anyhow::Result;
 use chrono::{Local, NaiveTime, TimeZone};
 use clap::{Parser, Subcommand};
 use mvg_api::{get_departures, get_notifications, get_routes, get_station};
+use spinners::{Spinner, Spinners};
 use tabled::{
     settings::{object::Columns, Modify, Width},
     Table, Tabled,
@@ -119,6 +120,7 @@ async fn handle_routes(
     time: Option<String>,
     arrival: bool,
 ) -> Result<()> {
+    let mut spinner = Spinner::new(Spinners::Aesthetic, "Fetching...".to_string());
     let from = &get_station(&from).await?[0];
     let from_id = match from {
         mvg_api::Location::Station(s) => &s.global_id,
@@ -218,7 +220,7 @@ async fn handle_routes(
         }
         _ => todo!(),
     };
-    println!("Connections for: {} ➜ {}", from_name, to_name);
+    spinner.stop_and_persist("✔", format!("Connections for: {} ➜ {}", from_name, to_name));
     println!("{}", table);
 
     Ok(())
@@ -241,6 +243,7 @@ struct DeparturesTableEntry {
 }
 
 async fn handle_departures(station: String, offset: Option<usize>) -> Result<()> {
+    let mut spinner = Spinner::new(Spinners::Aesthetic, "Fetching...".to_string());
     let station = &get_station(&station).await?[0];
     let station_id = match station {
         mvg_api::Location::Station(s) => &s.global_id,
@@ -281,7 +284,8 @@ async fn handle_departures(station: String, offset: Option<usize>) -> Result<()>
         }
         _ => todo!(),
     };
-    println!("Departures for: {}", station_name);
+
+    spinner.stop_and_persist("✔", format!("Departures for: {}", station_name));
 
     let mut table = Table::new(departures_table_entries);
     table.with(tabled::settings::Style::rounded());
