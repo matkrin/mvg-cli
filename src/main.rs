@@ -2,6 +2,7 @@ use anyhow::Result;
 use chrono::{Local, NaiveTime, TimeZone};
 use clap::{Parser, Subcommand};
 use mvg_api::{get_departures, get_notifications, get_routes, get_station};
+use nu_ansi_term::{Color::Fixed, Style};
 use spinners::{Spinner, Spinners};
 use tabled::{
     settings::{object::Columns, Modify, Width},
@@ -44,7 +45,7 @@ enum Commands {
         offset: Option<usize>,
     },
 
-    /// Show notifications for specific lines or all notifications if no arguments are given
+    /// Show all notifications or for a specific line
     #[clap(visible_alias = "n")]
     Notifications {
         /// Filter for a specific line
@@ -207,7 +208,7 @@ async fn handle_routes(
                 .to_string();
             [a, b].join(", ")
         }
-        _ => unreachable!(),  // program would already have exited at this point
+        _ => unreachable!(), // program would already have exited at this point
     };
     let to_name = match to_response {
         mvg_api::Location::Station(s) => {
@@ -218,7 +219,7 @@ async fn handle_routes(
                 .to_string();
             [a, b].join(", ")
         }
-        _ => unreachable!(),  // program would already have exited at this point
+        _ => unreachable!(), // program would already have exited at this point
     };
     spinner.stop_and_persist("✔", format!("Connections for: {} ➜ {}", from_name, to_name));
     println!("{}", table);
@@ -282,7 +283,7 @@ async fn handle_departures(station: String, offset: Option<usize>) -> Result<()>
                 .to_string();
             [a, b].join(", ")
         }
-        _ => unreachable!(),  // program would already have exited
+        _ => unreachable!(), // program would already have exited
     };
 
     spinner.stop_and_persist("✔", format!("Departures for: {}", station_name));
@@ -305,9 +306,7 @@ struct NotificationsTableEntry {
 }
 
 async fn handle_notifications(filter: Option<String>) -> Result<()> {
-    use nu_ansi_term::Style;
     let notifications = get_notifications().await?;
-    // dbg!(&notifications[0]);
     let notifications_table_entries = notifications
         .iter()
         .map(|notification| {
@@ -398,15 +397,13 @@ fn colorize_line(line: &str) -> String {
 }
 
 fn colorized_ubahn(line: &str) -> String {
-    use nu_ansi_term::Color::Fixed;
-    use nu_ansi_term::Style;
-    let colored = match line {
-        "U1" => Fixed(255).on(Fixed(22)).paint(format!(" {} ", line)),
-        "U2" => Fixed(255).on(Fixed(124)).paint(format!(" {} ", line)),
-        "U3" => Fixed(255).on(Fixed(166)).paint(format!(" {} ", line)),
-        "U4" => Fixed(255).on(Fixed(30)).paint(format!(" {} ", line)),
-        "U5" => Fixed(255).on(Fixed(94)).paint(format!(" {} ", line)),
-        "U6" => Fixed(255).on(Fixed(20)).paint(format!(" {} ", line)),
+    match line {
+        "U1" => colorize_bg(line, 22),
+        "U2" => colorize_bg(line, 124),
+        "U3" => colorize_bg(line, 166),
+        "U4" => colorize_bg(line, 30),
+        "U5" => colorize_bg(line, 94),
+        "U6" => colorize_bg(line, 20),
         "U7" => {
             let mut i = line.chars();
             let lhs = i.next().unwrap();
@@ -414,7 +411,7 @@ fn colorized_ubahn(line: &str) -> String {
             let lhs = Fixed(255).on(Fixed(22)).paint(format!(" {}", lhs));
             let rhs = Fixed(255).on(Fixed(124)).paint(format!("{} ", rhs));
             let total = [lhs.to_string(), rhs.to_string()].join("");
-            Style::new().paint(total)
+            Style::new().paint(total).to_string()
         }
         "U8" => {
             let mut i = line.chars();
@@ -423,26 +420,32 @@ fn colorized_ubahn(line: &str) -> String {
             let lhs = Fixed(255).on(Fixed(124)).paint(format!(" {}", lhs));
             let rhs = Fixed(255).on(Fixed(166)).paint(format!("{} ", rhs));
             let total = [lhs.to_string(), rhs.to_string()].join("");
-            Style::new().paint(total)
+            Style::new().paint(total).to_string()
         }
-        _ => Style::default().paint(line),
-    };
-    colored.to_string()
+        _ => line.to_string(),
+    }
 }
 
 fn colorize_sbahn(line: &str) -> String {
-    use nu_ansi_term::Color::Fixed;
-    use nu_ansi_term::Style;
-    let colored = match line {
-        "S1" => Fixed(255).on(Fixed(73)).paint(format!(" {} ", line)),
-        "S2" => Fixed(255).on(Fixed(34)).paint(format!(" {} ", line)),
-        "S3" => Fixed(255).on(Fixed(53)).paint(format!(" {} ", line)),
-        "S4" => Fixed(255).on(Fixed(196)).paint(format!(" {} ", line)),
-        "S6" => Fixed(255).on(Fixed(29)).paint(format!(" {} ", line)),
-        "S7" => Fixed(255).on(Fixed(204)).paint(format!(" {} ", line)),
-        "S8" => Fixed(226).on(Fixed(233)).paint(format!(" {} ", line)),
-        "S20" => Fixed(255).on(Fixed(203)).paint(format!(" {} ", line)),
-        _ => Style::default().paint(line),
-    };
-    colored.to_string()
+    match line {
+        "S1" => colorize_bg(line, 73),
+        "S2" => colorize_bg(line, 34),
+        "S3" => colorize_bg(line, 53),
+        "S4" => colorize_bg(line, 196),
+        "S6" => colorize_bg(line, 29),
+        "S7" => colorize_bg(line, 204),
+        "S8" => Fixed(226)
+            .on(Fixed(233))
+            .paint(format!(" {} ", line))
+            .to_string(),
+        "S20" => colorize_bg(line, 203),
+        _ => line.to_string(),
+    }
+}
+
+fn colorize_bg(line: &str, background_color: u8) -> String {
+    Fixed(255)
+        .on(Fixed(background_color))
+        .paint(format!(" {} ", line))
+        .to_string()
 }
