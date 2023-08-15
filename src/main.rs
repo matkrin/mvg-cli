@@ -125,12 +125,12 @@ async fn handle_routes(
     let from_response = &get_station(&from).await?[0];
     let from_id = match from_response {
         mvg_api::Location::Station(s) => &s.global_id,
-        _ => panic!("No station {} found", from),
+        _ => anyhow::bail!("No station {} found", from),
     };
     let to_response = &get_station(&to).await?[0];
     let to_id = match to_response {
         mvg_api::Location::Station(s) => &s.global_id,
-        _ => panic!("No station {} found", to),
+        _ => anyhow::bail!("No station {} found", to),
     };
     let time = match time {
         Some(t) => {
