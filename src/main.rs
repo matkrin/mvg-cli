@@ -1,14 +1,18 @@
+mod colorize;
+
 use anyhow::Result;
 use chrono::{Local, NaiveTime, TimeZone};
 use clap::{Parser, Subcommand};
-use mvg_api::{get_departures, get_notifications, get_routes, get_station};
-use nu_ansi_term::{Color::Fixed, Style};
+use mvg_api::{get_departures, get_notifications, get_routes, get_station, Location};
+use nu_ansi_term::Style;
 use spinners::{Spinner, Spinners};
 use tabled::{
     settings::{object::Columns, Modify, Width},
     Table, Tabled,
 };
 use terminal_size::{terminal_size, Width as TerminalWidth};
+
+use crate::colorize::colorize_line;
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
@@ -199,27 +203,13 @@ async fn handle_routes(
 
     let mut table = Table::new(table_entries);
     table.with(tabled::settings::Style::rounded());
-    let from_name = match from_response {
-        mvg_api::Location::Station(s) => {
-            let a = nu_ansi_term::Style::new().bold().paint(&s.name).to_string();
-            let b = nu_ansi_term::Style::new()
-                .italic()
-                .paint(&s.place)
-                .to_string();
-            [a, b].join(", ")
-        }
-        _ => unreachable!(), // program would already have exited at this point
+    let from_name = match name_from_location(from_response) {
+        Some(s) => s,
+        None => anyhow::bail!("No station name found for {}", from),
     };
-    let to_name = match to_response {
-        mvg_api::Location::Station(s) => {
-            let a = nu_ansi_term::Style::new().bold().paint(&s.name).to_string();
-            let b = nu_ansi_term::Style::new()
-                .italic()
-                .paint(&s.place)
-                .to_string();
-            [a, b].join(", ")
-        }
-        _ => unreachable!(), // program would already have exited at this point
+    let to_name = match name_from_location(to_response) {
+        Some(s) => s,
+        None => anyhow::bail!("No station name found for {}", to),
     };
     spinner.stop_and_persist("✔", format!("Connections for: {} ➜ {}", from_name, to_name));
     println!("{}", table);
@@ -274,16 +264,9 @@ async fn handle_departures(station: String, offset: Option<usize>) -> Result<()>
         }
     });
 
-    let station_name = match station_response {
-        mvg_api::Location::Station(s) => {
-            let a = nu_ansi_term::Style::new().bold().paint(&s.name).to_string();
-            let b = nu_ansi_term::Style::new()
-                .italic()
-                .paint(&s.place)
-                .to_string();
-            [a, b].join(", ")
-        }
-        _ => unreachable!(), // program would already have exited
+    let station_name = match name_from_location(station_response) {
+        Some(s) => s,
+        None => anyhow::bail!("No station name found for {}", station),
     };
 
     spinner.stop_and_persist("✔", format!("Departures for: {}", station_name));
@@ -386,11 +369,16 @@ fn handle_map(region: bool, tram: bool, night: bool) -> Result<()> {
     Ok(())
 }
 
+fn name_from_location(location_response: &Location) -> Option<String> {
+    match location_response {
+        mvg_api::Location::Station(s) => {
+            let a = nu_ansi_term::Style::new().bold().paint(&s.name).to_string();
+            let b = nu_ansi_term::Style::new()
+                .italic()
+                .paint(&s.place)
+                .to_string();
+            Some([a, b].join(", "))
         }
-        _ => line.to_string(),
-    }
-}
-
         _ => None,
     }
 }
