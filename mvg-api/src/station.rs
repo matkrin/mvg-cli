@@ -8,6 +8,16 @@ pub enum Location {
     Poi(PoiResponse),
 }
 
+impl Location {
+    pub fn is_station(&self) -> bool {
+        match self {
+            Location::Station(_) => true,
+            Location::Address(_) => false,
+            Location::Poi(_) => false,
+        }
+    }
+}
+
 #[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct StationResp {
