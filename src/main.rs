@@ -2,7 +2,7 @@ mod colorize;
 
 use anyhow::Result;
 use chrono::{Local, NaiveTime, TimeZone};
-use clap::{builder::NonEmptyStringValueParser, Parser, Subcommand};
+use clap::{Parser, Subcommand};
 use mvg_api::{
     departures::Departure,
     get_departures, get_notifications, get_routes, get_station,
@@ -361,10 +361,10 @@ async fn handle_notifications(filter: Option<String>) -> Result<()> {
     let mut table = Table::new(notifications_table_entries);
     table
         .with(tabled::settings::Style::rounded())
-        .with(Modify::new(Columns::first()).with(Width::wrap(10).keep_words()))
+        .with(Modify::new(Columns::first()).with(Width::wrap(10).keep_words(true)))
         .with(
             Modify::new(Columns::last())
-                .with(Width::wrap(terminal_width as usize - 50).keep_words()),
+                .with(Width::wrap(terminal_width as usize - 50).keep_words(true)),
         );
 
     println!("{}", table);
