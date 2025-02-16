@@ -2,9 +2,13 @@ mod colorize;
 
 use anyhow::Result;
 use chrono::{Local, NaiveTime, TimeZone};
-use clap::{Parser, Subcommand};
+use clap::{builder::NonEmptyStringValueParser, Parser, Subcommand};
 use mvg_api::{
-    get_departures, get_notifications, get_routes, get_station, routes::GetRoutesConfig, Location,
+    departures::Departure,
+    get_departures, get_notifications, get_routes, get_station,
+    notifications::Notification,
+    routes::{Connection, GetRoutesConfig},
+    Location,
 };
 use nu_ansi_term::Style;
 use spinners::{Spinner, Spinners};
@@ -121,6 +125,49 @@ struct RouteTableEntry {
     info: String,
 }
 
+impl From<&Connection> for RouteTableEntry {
+    fn from(connection: &Connection) -> Self {
+        let origin = &connection.parts[0].from;
+        let destination = &connection.parts[connection.parts.len() - 1].to;
+        let time = format!(
+            "{} - {}",
+            origin.planned_departure.format("%H:%M"),
+            destination.planned_departure.format("%H:%M")
+        );
+        let in_minutes = (origin.planned_departure.time() - Local::now().time())
+            .num_minutes()
+            .to_string();
+        let duration = (destination.planned_departure.time() - origin.planned_departure.time())
+            .num_minutes()
+            .to_string();
+        let lines = connection
+            .parts
+            .iter()
+            .map(|x| colorize_line(&x.line.label))
+            .collect::<Vec<_>>()
+            .join(", ");
+        let delay = match origin.departure_delay_in_minutes {
+            Some(delay) if delay != 0 => delay.to_string(),
+            _ => "-".to_string(),
+        };
+        let info = connection
+            .parts
+            .iter()
+            .flat_map(|x| x.messages.clone())
+            .collect::<Vec<_>>()
+            .join("\n");
+
+        Self {
+            time,
+            in_minutes,
+            duration,
+            lines,
+            delay,
+            info,
+        }
+    }
+}
+
 async fn handle_routes(
     from: String,
     to: String,
@@ -173,50 +220,7 @@ async fn handle_routes(
     )
     .await?;
 
-    let table_entries = routes
-        .iter()
-        .map(|connection| {
-            let origin = &connection.parts[0].from;
-            let destination = &connection.parts[connection.parts.len() - 1].to;
-            let time = format!(
-                "{} - {}",
-                origin.planned_departure.format("%H:%M"),
-                destination.planned_departure.format("%H:%M")
-            );
-            let in_minutes = (origin.planned_departure.time() - Local::now().time())
-                .num_minutes()
-                .to_string();
-            let duration = (destination.planned_departure.time() - origin.planned_departure.time())
-                .num_minutes()
-                .to_string();
-            let lines = connection
-                .parts
-                .iter()
-                .map(|x| colorize_line(&x.line.label))
-                .collect::<Vec<_>>()
-                .join(", ");
-            let delay = match origin.departure_delay_in_minutes {
-                Some(delay) if delay != 0 => delay.to_string(),
-                _ => "-".to_string(),
-            };
-            let info = connection
-                .parts
-                .iter()
-                .flat_map(|x| x.messages.clone())
-                .collect::<Vec<_>>()
-                .join("\n");
-
-            RouteTableEntry {
-                time,
-                in_minutes,
-                duration,
-                lines,
-                delay,
-                info,
-            }
-        })
-        .collect::<Vec<_>>();
-
+    let table_entries = routes.iter().map(RouteTableEntry::from).collect::<Vec<_>>();
     let mut table = Table::new(table_entries);
     table.with(tabled::settings::Style::rounded());
     let Ok(from_name) = name_from_location(from_response) else {
@@ -247,16 +251,8 @@ struct DeparturesTableEntry {
     info: String,
 }
 
-async fn handle_departures(station: String, offset: Option<usize>) -> Result<()> {
-    let mut spinner = Spinner::new(Spinners::Aesthetic, "Fetching...".to_string());
-    let station_response = &get_station(&station).await?[0];
-    let station_id = match station_response {
-        mvg_api::Location::Station(s) => &s.global_id,
-        _ => panic!("No station {} found", station),
-    };
-    let offset = offset.unwrap_or(0);
-    let departures = get_departures(station_id, offset).await?;
-    let departures_table_entries = departures.iter().map(|departure| {
+impl From<&Departure> for DeparturesTableEntry {
+    fn from(departure: &Departure) -> Self {
         let time = departure.planned_departure_time.format("%H:%M").to_string();
         let in_minutes = (departure.planned_departure_time.time() - Local::now().time())
             .num_minutes()
@@ -268,7 +264,8 @@ async fn handle_departures(station: String, offset: Option<usize>) -> Result<()>
             _ => "-".to_string(),
         };
         let info = departure.messages.join("\n");
-        DeparturesTableEntry {
+
+        Self {
             time,
             in_minutes,
             line,
@@ -276,7 +273,21 @@ async fn handle_departures(station: String, offset: Option<usize>) -> Result<()>
             delay,
             info,
         }
-    });
+    }
+}
+
+async fn handle_departures(station: String, offset: Option<usize>) -> Result<()> {
+    let mut spinner = Spinner::new(Spinners::Aesthetic, "Fetching...".to_string());
+    let station_response = &get_station(&station).await?[0];
+    let station_id = match station_response {
+        mvg_api::Location::Station(s) => &s.global_id,
+        _ => panic!("No station {} found", station),
+    };
+    let offset = offset.unwrap_or(0);
+
+    let departures = get_departures(station_id, offset).await?;
+
+    let departures_table_entries = departures.iter().map(DeparturesTableEntry::from);
 
     let Ok(station_name) = name_from_location(station_response) else {
         anyhow::bail!("No station name found for {}", station)
@@ -301,32 +312,36 @@ struct NotificationsTableEntry {
     details: String,
 }
 
+impl From<&Notification> for NotificationsTableEntry {
+    fn from(notification: &Notification) -> Self {
+        let lines = notification
+            .lines
+            .iter()
+            .map(|line| colorize_line(&line.label))
+            .collect::<Vec<_>>()
+            .join(", ");
+        let duration_from = notification.incident_durations[0].from.format("%d.%m.%Y");
+        let duration_to = notification.incident_durations[0]
+            .to
+            .map(|x| x.format("%d.%m.%Y").to_string())
+            .unwrap_or("".to_string());
+        let duration = format!("{} - {}", duration_from, duration_to);
+        let title = html2text::from_read(notification.title.as_bytes(), 99999);
+        let text = html2text::from_read(notification.description.as_bytes(), 99999);
+        let details = format!("{}\n{}", Style::new().bold().paint(title), text);
+        Self {
+            lines,
+            duration,
+            details,
+        }
+    }
+}
+
 async fn handle_notifications(filter: Option<String>) -> Result<()> {
     let notifications = get_notifications().await?;
     let notifications_table_entries = notifications
         .iter()
-        .map(|notification| {
-            let lines = notification
-                .lines
-                .iter()
-                .map(|line| colorize_line(&line.label))
-                .collect::<Vec<_>>()
-                .join(", ");
-            let duration_from = notification.incident_durations[0].from.format("%d.%m.%Y");
-            let duration_to = notification.incident_durations[0]
-                .to
-                .map(|x| x.format("%d.%m.%Y").to_string())
-                .unwrap_or("".to_string());
-            let duration = format!("{} - {}", duration_from, duration_to);
-            let title = html2text::from_read(notification.title.as_bytes(), 99999);
-            let text = html2text::from_read(notification.description.as_bytes(), 99999);
-            let details = format!("{}\n{}", Style::new().bold().paint(title), text);
-            NotificationsTableEntry {
-                lines,
-                duration,
-                details,
-            }
-        })
+        .map(NotificationsTableEntry::from)
         .collect::<Vec<_>>();
 
     let notifications_table_entries = match filter {
