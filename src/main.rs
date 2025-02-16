@@ -3,7 +3,9 @@ mod colorize;
 use anyhow::Result;
 use chrono::{Local, NaiveTime, TimeZone};
 use clap::{Parser, Subcommand};
-use mvg_api::{get_departures, get_notifications, get_routes, get_station, Location};
+use mvg_api::{
+    get_departures, get_notifications, get_routes, get_station, routes::GetRoutesConfig, Location,
+};
 use nu_ansi_term::Style;
 use spinners::{Spinner, Spinners};
 use tabled::{
@@ -126,16 +128,33 @@ async fn handle_routes(
     arrival: bool,
 ) -> Result<()> {
     let mut spinner = Spinner::new(Spinners::Aesthetic, "Fetching...".to_string());
-    let from_response = &get_station(&from).await?[0];
-    let from_id = match from_response {
-        mvg_api::Location::Station(s) => &s.global_id,
-        _ => anyhow::bail!("No station {} found", from),
+    let from_clone = from.clone();
+    let to_clone = to.clone();
+    let from_handle = tokio::spawn(async move { get_station(&from_clone).await });
+    let to_handle = tokio::spawn(async move { get_station(&to_clone).await });
+    let (from_responses, to_responses) = match tokio::try_join!(from_handle, to_handle) {
+        Ok((Ok(from), Ok(to))) => (from, to),
+        _ => anyhow::bail!("Error fetching responses"),
     };
-    let to_response = &get_station(&to).await?[0];
-    let to_id = match to_response {
-        mvg_api::Location::Station(s) => &s.global_id,
+
+    let from_response = from_responses
+        .iter()
+        .find(|&it| it.is_station())
+        .ok_or(anyhow::anyhow!("No station {} found", from))?;
+    let to_response = to_responses
+        .iter()
+        .find(|&it| it.is_station())
+        .ok_or(anyhow::anyhow!("No station {} found", from))?;
+
+    let from_id = match from_response {
+        Location::Station(s) => &s.global_id,
         _ => anyhow::bail!("No station {} found", to),
     };
+    let to_id = match to_response {
+        Location::Station(s) => &s.global_id,
+        _ => anyhow::bail!("No station {} found", to),
+    };
+
     let time = match time {
         Some(t) => {
             let naive_time = NaiveTime::parse_from_str(&t, "%H:%M")?;
@@ -150,13 +169,10 @@ async fn handle_routes(
         to_id,
         Some(time),
         Some(arrival),
-        None,
-        None,
-        None,
-        None,
-        None,
+        GetRoutesConfig::default(),
     )
     .await?;
+
     let table_entries = routes
         .iter()
         .map(|connection| {
@@ -203,13 +219,11 @@ async fn handle_routes(
 
     let mut table = Table::new(table_entries);
     table.with(tabled::settings::Style::rounded());
-    let from_name = match name_from_location(from_response) {
-        Some(s) => s,
-        None => anyhow::bail!("No station name found for {}", from),
+    let Ok(from_name) = name_from_location(from_response) else {
+        anyhow::bail!("No station name found for {}", from)
     };
-    let to_name = match name_from_location(to_response) {
-        Some(s) => s,
-        None => anyhow::bail!("No station name found for {}", to),
+    let Ok(to_name) = name_from_location(to_response) else {
+        anyhow::bail!("No station name found for {}", to)
     };
     spinner.stop_and_persist("✔", format!("Connections for: {} ➜ {}", from_name, to_name));
     println!("{}", table);
@@ -264,9 +278,8 @@ async fn handle_departures(station: String, offset: Option<usize>) -> Result<()>
         }
     });
 
-    let station_name = match name_from_location(station_response) {
-        Some(s) => s,
-        None => anyhow::bail!("No station name found for {}", station),
+    let Ok(station_name) = name_from_location(station_response) else {
+        anyhow::bail!("No station name found for {}", station)
     };
 
     spinner.stop_and_persist("✔", format!("Departures for: {}", station_name));
@@ -296,18 +309,17 @@ async fn handle_notifications(filter: Option<String>) -> Result<()> {
             let lines = notification
                 .lines
                 .iter()
-                .map(|line| colorize_line(&line.name))
+                .map(|line| colorize_line(&line.label))
                 .collect::<Vec<_>>()
                 .join(", ");
-            let duration_from = notification.active_duration.from_date.format("%d.%m.%Y");
-            let duration_to = notification
-                .active_duration
-                .to_date
+            let duration_from = notification.incident_durations[0].from.format("%d.%m.%Y");
+            let duration_to = notification.incident_durations[0]
+                .to
                 .map(|x| x.format("%d.%m.%Y").to_string())
                 .unwrap_or("".to_string());
             let duration = format!("{} - {}", duration_from, duration_to);
             let title = html2text::from_read(notification.title.as_bytes(), 99999);
-            let text = html2text::from_read(notification.text.as_bytes(), 99999);
+            let text = html2text::from_read(notification.description.as_bytes(), 99999);
             let details = format!("{}\n{}", Style::new().bold().paint(title), text);
             NotificationsTableEntry {
                 lines,
@@ -369,7 +381,7 @@ fn handle_map(region: bool, tram: bool, night: bool) -> Result<()> {
     Ok(())
 }
 
-fn name_from_location(location_response: &Location) -> Option<String> {
+fn name_from_location(location_response: &Location) -> Result<String> {
     match location_response {
         mvg_api::Location::Station(s) => {
             let a = nu_ansi_term::Style::new().bold().paint(&s.name).to_string();
@@ -377,8 +389,8 @@ fn name_from_location(location_response: &Location) -> Option<String> {
                 .italic()
                 .paint(&s.place)
                 .to_string();
-            Some([a, b].join(", "))
+            Ok([a, b].join(", "))
         }
-        _ => None,
+        _ => Err(anyhow::anyhow!("Location response is not a station")),
     }
 }
