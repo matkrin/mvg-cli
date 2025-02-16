@@ -24,6 +24,8 @@ pub struct ConnectionPart {
     pub distance: f64,
     pub occupancy: String,
     pub messages: Vec<String>,
+    pub infos: Vec<String>,
+    pub real_time: bool,
 }
 
 // #[serde_with::serde_as]
@@ -35,6 +37,7 @@ pub struct Station {
     pub station_global_id: String,
     pub station_diva_id: usize,
     pub platform: Option<usize>,
+    pub platfrom_changed: Option<bool>,
     pub place: String,
     pub name: String,
     // #[serde_as(as = "Rfc3339")]
@@ -42,6 +45,7 @@ pub struct Station {
     pub departure_delay_in_minutes: Option<isize>,
     pub arrival_delay_in_minutes: Option<isize>,
     pub transport_types: Vec<String>,
+    pub is_via_stop: Option<bool>,
     pub surrounding_plan_link: String,
     pub occupancy: String,
     pub has_zoom_data: bool,
@@ -68,6 +72,7 @@ pub struct TicketingInformation {
     pub unified_ticket_ids: Vec<String>,
     pub distance: Option<f64>,
     pub banner_hash: Option<String>,
+    pub refresh_id: Option<String>,
 }
 
 #[derive(Deserialize, Debug)]
@@ -123,7 +128,8 @@ pub async fn get_routes(
     };
 
     let url = format!(
-        "https://www.mvg.de/api/fib/v2/connection?originStationGlobalId={}&destinationStationGlobalId={}&routingDateTime={}&routingDateTimeIsArrival={}&transportTypes={}",
+        //"https://www.mvg.de/api/fib/v2/connection?originStationGlobalId={}&destinationStationGlobalId={}&routingDateTime={}&routingDateTimeIsArrival={}&transportTypes={}",
+        "https://www.mvg.de/api/bgw-pt/v3/routes?originStationGlobalId={}&destinationStationGlobalId={}&routingDateTime={}&routingDateTimeIsArrival={}&transportTypes={}",
         from_station_id,
         to_station_id,
         time.to_rfc3339_opts(SecondsFormat::Millis, true),

@@ -22,7 +22,7 @@ pub struct StationResp {
     // pub has_live_data: bool,
     pub has_zoom_data: bool,
     pub transport_types: Vec<String>,
-    pub surrounding_plan_link: String,
+    //pub surrounding_plan_link: String,
     pub aliases: String,
     pub tariff_zones: String,
 }
@@ -55,9 +55,11 @@ pub struct PoiResponse {
 
 pub async fn get_station(station_search: &str) -> Result<Vec<Location>, reqwest::Error> {
     let url = format!(
-        "https://www.mvg.de/api/fib/v2/location?query={}",
+        //"https://www.mvg.de/api/fib/v2/location?query={}",
+        "https://www.mvg.de/api/bgw-pt/v3/locations?query={}",
         station_search
     );
     let resp = reqwest::get(url).await?.json::<Vec<Location>>().await?;
+    //dbg!(&resp);
     Ok(resp)
 }

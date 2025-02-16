@@ -27,8 +27,15 @@ pub struct Departure {
     pub stop_point_global_id: String,
 }
 
-pub async fn get_departures(station_id: &str, offset_in_min: usize) -> Result<Vec<Departure>, reqwest::Error> {
-    let url = format!("https://www.mvg.de/api/fib/v2/departure?globalId={}&limit=10&offsetInMinutes={}&transportTypes=UBAHN,TRAM,BUS,SBAHN,SCHIFF", station_id, offset_in_min);
+pub async fn get_departures(
+    station_id: &str,
+    offset_in_min: usize,
+) -> Result<Vec<Departure>, reqwest::Error> {
+    let url = format!(
+        "https://www.mvg.de/api/bgw-pt/v3/departures?globalId={}&limit=10&offestInMinutes={}&transportTypes=UBAHN,REGIONAL_BUS,BUS,TRAM,SBAHN,SCHIFF",
+        station_id,
+        offset_in_min
+    );
     let resp = reqwest::get(url).await?.json::<Vec<Departure>>().await?;
     Ok(resp)
 }
