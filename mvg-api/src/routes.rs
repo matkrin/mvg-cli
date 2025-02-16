@@ -83,43 +83,49 @@ pub struct PathDescription {
     pub level: isize,
 }
 
+pub struct GetRoutesConfig {
+    include_ubahn: bool,
+    include_bus: bool,
+    include_tram: bool,
+    include_sbahn: bool,
+    include_taxi: bool,
+}
+
+impl Default for GetRoutesConfig {
+    fn default() -> Self {
+        Self {
+            include_ubahn: true,
+            include_bus: true,
+            include_tram: true,
+            include_sbahn: true,
+            include_taxi: true,
+        }
+    }
+}
+
 pub async fn get_routes(
     from_station_id: &str,
     to_station_id: &str,
     time: Option<DateTime<Local>>,
     arrival: Option<bool>,
-    include_ubahn: Option<bool>,
-    include_bus: Option<bool>,
-    include_tram: Option<bool>,
-    include_sbahn: Option<bool>,
-    include_taxi: Option<bool>,
+    get_routes_config: GetRoutesConfig,
 ) -> Result<Vec<Connection>, reqwest::Error> {
     let mut transport_types = Vec::new();
 
-    if let Some(x) = include_ubahn {
-        if x {
-            transport_types.push("UBAHN")
-        }
+    if get_routes_config.include_ubahn {
+        transport_types.push("UBAHN")
     }
-    if let Some(x) = include_bus {
-        if x {
-            transport_types.push("BUS")
-        }
+    if get_routes_config.include_bus {
+        transport_types.push("BUS")
     }
-    if let Some(x) = include_tram {
-        if x {
-            transport_types.push("TRAM")
-        }
+    if get_routes_config.include_tram {
+        transport_types.push("TRAM")
     }
-    if let Some(x) = include_sbahn {
-        if x {
-            transport_types.push("SBAHN")
-        }
+    if get_routes_config.include_sbahn {
+        transport_types.push("SBAHN")
     }
-    if let Some(x) = include_taxi {
-        if x {
-            transport_types.push("RUFTAXI")
-        }
+    if get_routes_config.include_taxi {
+        transport_types.push("RUFTAXI")
     }
 
     let time: DateTime<Utc> = match time {
