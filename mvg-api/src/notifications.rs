@@ -41,7 +41,7 @@ pub struct NotificationLines {
     pub label: String,
     pub transport_type: String,
     pub network: String,
-    pub diva_id: String,
+    pub diva_id: Option<String>,
     pub sev: bool,
 }
 
