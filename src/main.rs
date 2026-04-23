@@ -312,8 +312,10 @@ struct NotificationsTableEntry {
     details: String,
 }
 
-impl From<&Notification> for NotificationsTableEntry {
-    fn from(notification: &Notification) -> Self {
+impl TryFrom<&Notification> for NotificationsTableEntry {
+    type Error = anyhow::Error;
+
+    fn try_from(notification: &Notification) -> std::result::Result<Self, Self::Error> {
         let lines = notification
             .lines
             .iter()
@@ -326,14 +328,14 @@ impl From<&Notification> for NotificationsTableEntry {
             .map(|x| x.format("%d.%m.%Y").to_string())
             .unwrap_or("".to_string());
         let duration = format!("{} - {}", duration_from, duration_to);
-        let title = html2text::from_read(notification.title.as_bytes(), 99999);
-        let text = html2text::from_read(notification.description.as_bytes(), 99999);
+        let title = html2text::from_read(notification.title.as_bytes(), 99999)?;
+        let text = html2text::from_read(notification.description.as_bytes(), 99999)?;
         let details = format!("{}\n{}", Style::new().bold().paint(title), text);
-        Self {
+        Ok(Self {
             lines,
             duration,
             details,
-        }
+        })
     }
 }
 
@@ -341,8 +343,8 @@ async fn handle_notifications(filter: Option<String>) -> Result<()> {
     let notifications = get_notifications().await?;
     let notifications_table_entries = notifications
         .iter()
-        .map(NotificationsTableEntry::from)
-        .collect::<Vec<_>>();
+        .map(NotificationsTableEntry::try_from)
+        .collect::<Result<Vec<_>>>()?;
 
     let notifications_table_entries = match filter {
         Some(f) => notifications_table_entries
