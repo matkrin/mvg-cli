@@ -377,21 +377,21 @@ async fn handle_notifications(filter: Option<String>) -> Result<()> {
 fn handle_map(region: bool, tram: bool, night: bool) -> Result<()> {
     if let (false, false, false) = (region, tram, night) {
         open::that(
-            "https://www.mvg.de/dam/jcr:88249232-e41c-417b-b976-1945c5ade867/netz-tarifplan.pdf",
+            "https://www.mvg.de/dam/jcr:bb478190-c72c-45dc-8bfd-630767abe696/2026_layout_SUR_M_5.pdf",
         )?
     };
 
     if region {
         open::that(
-            "https://www.mvg.de/dam/jcr:88249232-e41c-417b-b976-1945c5ade867/netz-tarifplan.pdf",
+            "https://www.mvg.de/dam/jcr:466d44bf-e754-460b-95d0-69364ab9cd93/2026_layout_SUR_M_12.pdf",
         )?;
     }
     if tram {
-        open::that("https://www.mvg.de/dam/jcr:1164570c-cc5f-4b6d-a007-e99c32b00905/tramnetz.pdf")?;
+        open::that("https://www.mvg.de/dam/jcr:d01df598-a358-44ad-9c35-3984488c036c/A4-Tramnetz-2026-Web.pdf")?;
     }
     if night {
         open::that(
-            "https://www.mvg.de/dam/jcr:fe99cd93-ef1c-483c-a715-f421da96382b/nachtliniennetz.pdf",
+            "https://www.mvg.de/dam/jcr:f284bcc9-3751-4388-9a2e-b6e8917999b1/A4-Nachtnetz-2026-Web.pdf"
         )?;
     }
 
