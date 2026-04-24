@@ -84,11 +84,11 @@ pub struct PathDescription {
 }
 
 pub struct GetRoutesConfig {
-    include_ubahn: bool,
-    include_bus: bool,
-    include_tram: bool,
-    include_sbahn: bool,
-    include_taxi: bool,
+    pub include_ubahn: bool,
+    pub include_bus: bool,
+    pub include_tram: bool,
+    pub include_sbahn: bool,
+    pub include_taxi: bool,
 }
 
 impl Default for GetRoutesConfig {
